@@ -67,6 +67,12 @@ pub struct ImageListenerConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SendPoseConfig {
+    pub topic: String,
+    pub msg_type: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ListenerConfigColor {
     pub topic: String,
     pub color: Color,
@@ -86,6 +92,7 @@ pub struct TeleopConfig {
     pub default_increment: f64,
     pub increment_step: f64,
     pub cmd_vel_topic: String,
+    pub publish_cmd_vel_when_idle: bool,
 }
 
 impl Default for TeleopConfig {
@@ -94,6 +101,7 @@ impl Default for TeleopConfig {
             default_increment: 0.1,
             increment_step: 0.1,
             cmd_vel_topic: "cmd_vel".to_string(),
+            publish_cmd_vel_when_idle: true,
         }
     }
 }
@@ -111,7 +119,7 @@ pub struct TermvizConfig {
     pub pointcloud2_topics: Vec<PointCloud2ListenerConfig>,
     pub pose_array_topics: Vec<PoseListenerConfig>,
     pub pose_stamped_topics: Vec<PoseListenerConfig>,
-    pub send_pose_topic: String,
+    pub send_pose_topics: Vec<SendPoseConfig>,
     pub target_framerate: i64,
     pub axis_length: f64,
     pub visible_area: Vec<f64>, //Borders of map from center in Meter
@@ -170,7 +178,10 @@ impl Default for TermvizConfig {
                 topic: "pointcloud2".to_string(),
                 use_rgb: false,
             }],
-            send_pose_topic: "initialpose".to_string(),
+            send_pose_topics: vec![SendPoseConfig {
+                topic: "initialpose".to_string(),
+                msg_type: "PoseWithCovarianceStamped".to_string(),
+            }],
             target_framerate: 30,
             axis_length: 0.5,
             visible_area: vec![-5., 5., -5., 5.],
@@ -188,6 +199,8 @@ impl Default for TermvizConfig {
                 (input::ZOOM_OUT.to_string(), "-".to_string()),
                 (input::INCREMENT_STEP.to_string(), "k".to_string()),
                 (input::DECREMENT_STEP.to_string(), "j".to_string()),
+                (input::NEXT.to_string(), "n".to_string()),
+                (input::PREVIOUS.to_string(), "b".to_string()),
                 (input::SHOW_HELP.to_string(), "h".to_string()),
                 (input::MODE_2.to_string(), "t".to_string()),
                 (input::MODE_3.to_string(), "i".to_string()),
@@ -210,29 +223,33 @@ pub fn ask_store() -> bool {
 }
 
 pub fn get_config(config_path: Option<&String>) -> Result<TermvizConfig, confy::ConfyError> {
-    let mut cfg = TermvizConfig::default();
     let user_path = confy::get_configuration_file_path("termviz", "termviz")?;
-    if config_path.is_some() {
+
+    // decide on which config path to load
+    let load_config_path = if config_path.is_some() {
         // config path provided by command line arg
-        cfg = confy::load_path(config_path.unwrap()).unwrap();
-    } else if Path::new(&user_path).exists() {
-        // use user config if exists
-        cfg = confy::load("termviz", "termviz")?;
+        Path::new(config_path.unwrap())
+    } else if user_path.as_path().exists() {
+        // use user config if it exists
+        user_path.as_path()
     } else {
         // fallback to system config
-        let sys_path = "/etc/termviz/termviz.yml";
-        if Path::new(sys_path).exists() {
-            cfg = confy::load_path(sys_path)?;
-        } else {
-            // no config found, generate default
-            println!("No config found, using default");
-            let store = ask_store();
-            if store {
-                let res = confy::store("termviz", "termviz", &cfg);
-                match res {
-                    Ok(_) => println!("Stored default config at {:?}", user_path),
-                    Err(e) => println!("Error storing default config: {:?}", e),
-                }
+        Path::new("/etc/termviz/termviz.yml")
+    };
+
+    let mut cfg = TermvizConfig::default();
+    if load_config_path.exists() {
+        println!("Loading config from: {:?}", load_config_path);
+        cfg = confy::load_path(load_config_path)?;
+    } else {
+        // no config found, generate default
+        println!("No config found, using default");
+        let store = ask_store();
+        if store {
+            let res = confy::store("termviz", "termviz", &cfg);
+            match res {
+                Ok(_) => println!("Stored default config at {:?}", user_path),
+                Err(e) => println!("Error storing default config: {:?}", e),
             }
         }
     };

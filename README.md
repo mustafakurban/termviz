@@ -43,12 +43,15 @@ Pressing `h` shows the help screen, which will describe the current mode and the
 
 ### Send pose mode
 
-The mode allows to publish a `geometry_msgs::PoseWithCovarianceStamped` message on a topic. The desired pose can be selected by moving the outline of the robot in the map. Confirming the operation (`Enter` by default) publishes the pose on the topic specified under `send_pose_topic` in the configuration file.
+The mode allows to publish a pose message on a topic, for example to send an initial pose estimate to a localization system or a goal pose for the navigation stack. The supported types are `geometry_msgs::Pose`, `geometry_msgs::PoseStamped`, and `geometry_msgs::PoseWithCovarianceStamped`. The desired pose can be selected by moving the outline of the robot in the map. Confirming the operation (`Enter` by default) publishes the pose on the selected topic among those specified under `send_pose_topics` in the configuration file. The target topic can be selected using the "next" and "previous" keys (`n` and `b` by default).
 
 ### Teleoperate mode
 
 The mode allows to teleoperate the robot by sending `geometry_msgs::Twist` messages on the specified topic (`cmd_vel` by default). The messages are continuously sent. Any unmapped key switches the sent messages to 0, i.e., stops the robot.
 Settings can be found under `teleop` in the configuration file.
+
+If the parameter 'publish_cmd_vel_when_idle' is set to true (default), the mode will keep publishing STOP (all velocities 0).
+Otherwise the command is only sent once! This should allow users to teleoperate robots without blocking them actively
 
 ### Image mode
 
@@ -113,7 +116,9 @@ pose_stamped_topics:            # geometry_msgs::PoseStamped topics.
       g: 0
       b: 0
     length: 0.2                 # Length of the axes.
-send_pose_topic: initialpose    # Topic on which to publish poses in Send Pose mode.
+send_pose_topics:               # Topics on which to publish poses in Send Pose mode.
+  - topic: pose                 # The topic name.
+    msg_type: PoseStamped       # The topic's type. Supported are Pose, PoseStamped and PoseWithCovarianceStamped.
 target_framerate: 30            # Refresh rate of the visualization. Lower this if the ssh connection is slow.
 axis_length: 0.5                # Length of the axes of the robot frame
 visible_area:                   # Default boundaries of the visible areas. Determines the initial level of zoom.
@@ -142,6 +147,7 @@ teleop:                        # Parameters for the Teleoperate mode.
   default_increment: 0.1       # Default velocity increment when pressing a key.
   increment_step: 0.1          # Step for increasing the velocity increment.
   cmd_vel_topic: cmd_vel       # Topic on which to publish the velocity commands.
+  publish_cmd_vel_when_idle: true # If true keep publishing 0 velocities, only publish once otherwise
 ```
 
 ## Maintainers
